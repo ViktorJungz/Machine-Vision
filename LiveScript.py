@@ -19,15 +19,20 @@ def detect_screws(frame):
     """Find multiple screws in the frame and return bounding boxes."""
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert to grayscale
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)  # Reduce noise
-    edges = cv2.Canny(blurred, 50, 150)  # Edge detection
+    edges = cv2.Canny(blurred, 30, 100)  # Adjusted edge detection thresholds
+
+    # Strengthen edges to improve detection
+    kernel = np.ones((5, 5), np.uint8)
+    edges = cv2.dilate(edges, kernel, iterations=1)
 
     # Find contours
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     bounding_boxes = []
     for contour in contours:
-        if cv2.contourArea(contour) > 500:  # Filter out very small objects
-            x, y, w, h = cv2.boundingRect(contour)  # Get bounding box
+        if cv2.contourArea(contour) > 2000:  # Reduced threshold for better detection
+            hull = cv2.convexHull(contour)  # Get convex hull for better shape
+            x, y, w, h = cv2.boundingRect(hull)  # Get bounding box
             bounding_boxes.append((x, y, w, h))
 
     return bounding_boxes
@@ -44,6 +49,11 @@ while True:
     bounding_boxes = detect_screws(frame)
 
     for (x, y, w, h) in bounding_boxes:
+        # Expand bounding box slightly to capture full screw
+        padding = 10  # Adjust if needed
+        x, y = max(x - padding, 0), max(y - padding, 0)
+        w, h = min(w + 2 * padding, frame.shape[1] - x), min(h + 2 * padding, frame.shape[0] - y)
+
         # Crop each detected screw
         screw_img = frame[y:y+h, x:x+w]
         screw_img = preprocess_frame(screw_img)

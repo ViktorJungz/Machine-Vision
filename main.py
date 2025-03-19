@@ -11,12 +11,19 @@ from sklearn.model_selection import train_test_split
 # Set parameters
 img_size = (224, 224)
 batch_size = 32
-epochs = 25
+epochs = 10
 data_dir = "Pictures"
 
-# Function to detect and crop the screw from an image
+# Data augmentation
+datagen = tf.keras.preprocessing.image.ImageDataGenerator(
+    rotation_range=180,  # Randomly rotate images
+    horizontal_flip=True,
+    vertical_flip=True  # Ensures different orientations are seen
+)
+
+# Function to detect and crop the screw while maintaining aspect ratio
 def detect_and_crop_screw(image):
-    """Detects the screw in an image and crops it before resizing."""
+    """Detects the screw in an image and crops it while preserving aspect ratio on a white background."""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # Convert to grayscale
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)  # Reduce noise
     edges = cv2.Canny(blurred, 50, 150)  # Edge detection
@@ -31,12 +38,22 @@ def detect_and_crop_screw(image):
         # Crop the detected screw
         cropped = image[y:y+h, x:x+w]
 
-        # Resize the cropped screw to match model input size
-        cropped = cv2.resize(cropped, img_size)
-        return cropped
+        # Resize while maintaining aspect ratio
+        h, w, _ = cropped.shape
+        scale = min(img_size[0] / w, img_size[1] / h)  # Scale factor
+        new_w, new_h = int(w * scale), int(h * scale)
+        resized = cv2.resize(cropped, (new_w, new_h))
 
-    # If no screw is found, return the original resized image
-    return cv2.resize(image, img_size)
+        # Create a white background and center the resized image
+        padded = np.ones((img_size[1], img_size[0], 3), dtype=np.uint8) * 255  # White background
+        start_x = (img_size[0] - new_w) // 2
+        start_y = (img_size[1] - new_h) // 2
+        padded[start_y:start_y+new_h, start_x:start_x+new_w] = resized
+
+        return padded
+
+    # If no screw is found, return a white image
+    return np.ones((img_size[1], img_size[0], 3), dtype=np.uint8) * 255
 
 # Function to preprocess dataset images
 def preprocess_image(file_path):
@@ -75,7 +92,10 @@ def load_dataset():
 X, y, class_names = load_dataset()
 
 # Split dataset into training (80%) and validation (20%)
-X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Apply data augmentation to training data
+X_train = datagen.flow(X_train, y_train, batch_size=batch_size)
 
 # Build the model
 model = keras.Sequential([
@@ -97,7 +117,7 @@ model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
               metrics=['accuracy'])
 
 # Train the model
-history = model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs)
+history = model.fit(X_train, epochs=epochs, validation_data=(X_val, y_val))
 
 # Save the model
 model.save("screw_classifier_model_cropped.h5")
