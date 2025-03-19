@@ -2,12 +2,16 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
 from tensorflow import keras
+from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
 
 # Set parameters
 img_size = (224, 224)
 batch_size = 32
-epochs = 25  # Adjust as needed
+epochs = 25
 data_dir = "Pictures"
 
 # Function to detect and crop the screw from an image
@@ -45,14 +49,10 @@ def preprocess_image(file_path):
 # Load dataset and preprocess images
 def load_dataset():
     images, labels = [], []
-    class_names = sorted(os.listdir(data_dir))  # Extract class names from folders
+    class_names = sorted([d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))])  # Ignore .DS_Store
 
     for class_index, class_name in enumerate(class_names):
         class_path = os.path.join(data_dir, class_name)
-
-        # Skip non-folder items
-        if not os.path.isdir(class_path):
-            continue
 
         for img_name in os.listdir(class_path):
             img_path = os.path.join(class_path, img_name)
@@ -75,7 +75,6 @@ def load_dataset():
 X, y, class_names = load_dataset()
 
 # Split dataset into training (80%) and validation (20%)
-from sklearn.model_selection import train_test_split
 X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Build the model
@@ -103,3 +102,18 @@ history = model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epo
 # Save the model
 model.save("screw_classifier_model_cropped.h5")
 print("Model trained and saved as 'screw_classifier_model_cropped.h5'")
+
+# Generate predictions on validation set
+y_pred = model.predict(X_val)
+y_pred_classes = np.argmax(y_pred, axis=1)  # Convert probabilities to class labels
+
+# Compute confusion matrix
+conf_matrix = confusion_matrix(y_val, y_pred_classes)
+
+# Plot confusion matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_names, yticklabels=class_names)
+plt.xlabel("Predicted Label")
+plt.ylabel("True Label")
+plt.title("Confusion Matrix")
+plt.show()
