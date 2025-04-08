@@ -5,8 +5,8 @@ import cv2
 # Load the trained model
 model = tf.keras.models.load_model("screw_classifier_model_cropped.h5")
 
-# Define class names (Ensure this matches your dataset)
-class_names = ['ScrewType1', 'ScrewType2', 'ScrewType3', 'ScrewType4']  # Update as needed
+# Define class names
+class_names = ['LagBolt', 'SMS', 'SocketScrew', 'WoodScrew']
 
 def preprocess_frame(frame):
     """Resize and normalize frame for model input."""
