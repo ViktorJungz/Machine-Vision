@@ -9,6 +9,8 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
 
+
+
 # Parameters
 img_size = (224, 224)
 batch_size = 32
@@ -97,3 +99,14 @@ plt.xlabel("Predicted Label")
 plt.ylabel("True Label")
 plt.title("ViT Confusion Matrix")
 plt.show()
+
+(1, new int[] {  6, 6 }, new int[] { 46, 20 }),
+(2, new int[] { 6, 20 }, new int[] { 20, 46 }),
+(3, new int[] { 20, 6 }, new int[] {  46, 6 }),
+(4, new int[] { 20, 20 }, new int[] { 6, 46 }),
+(5, new int[] {  33, 6 }, new int[] { 6, 6 }),
+(6, new int[] { 46, 20 }, new int[] { 6, 33 }),
+(7, new int[] { 33, 20 }, new int[] {  33, 6 }),
+(8, new int[] { 46, 20 }, new int[] { 6, 20 }),
+(9, new int[] {  6, 33 }, new int[] { 20, 6 }),
+(10, new int[] { 6, 46 }, new int[] { 20, 20 }),

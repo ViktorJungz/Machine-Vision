@@ -2,7 +2,7 @@ import cv2
 import os
 
 # Create a directory for saving photos if it doesn't exist
-save_dir = "Pictures/4"
+save_dir = "Pictures/WoodScrew"
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
@@ -12,7 +12,7 @@ cap = cv2.VideoCapture(0)
 print("Press the spacebar to take a picture. Press 'q' to quit.")
 
 # Initialize a counter for picture filenames
-counter = 1
+counter = 151
 
 while True:
     # Capture frame-by-frame

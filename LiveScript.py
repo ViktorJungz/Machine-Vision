@@ -38,7 +38,7 @@ def detect_screws(frame):
     return bounding_boxes
 
 # Open webcam
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 
 while True:
     ret, frame = cap.read()
@@ -62,13 +62,15 @@ while True:
         predictions = model.predict(screw_img)
         class_index = np.argmax(predictions)  # Get highest probability class
         class_name = class_names[class_index]  # Get class label
+        confidence_score = predictions[0][class_index]  # Get confidence score
 
         # Draw bounding box
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        # Ensure label appears above the box
+        # Ensure label and score appear above the box
         label_y = max(y - 10, 20)
-        cv2.putText(frame, class_name, (x, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        label_text = f"{class_name}: {confidence_score:.2f}"
+        cv2.putText(frame, label_text, (x, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
     # Show the output
     cv2.imshow("Live Multi-Screw Detection", frame)
