@@ -7,12 +7,19 @@ import seaborn as sns
 from tensorflow import keras
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
+from keras.src.callbacks import EarlyStopping
+from sklearn.metrics import precision_recall_curve, average_precision_score
+
+
 
 # Set parameters
 img_size = (224, 224)
-batch_size = 32
-epochs = 10
+batch_size = 64
+epochs = 30
 data_dir = "Pictures"
+
+# Define EarlyStopping callback
+early_stopping = EarlyStopping(monitor='val_loss', patience=3)
 
 # Data augmentation
 datagen = tf.keras.preprocessing.image.ImageDataGenerator(
@@ -112,12 +119,12 @@ model = keras.Sequential([
 ])
 
 # Compile the model
-model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
+model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),    # Reudced from 0.001 to 0.0001
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
 
-# Train the model
-history = model.fit(X_train, epochs=epochs, validation_data=(X_val, y_val))
+# Train the model with the callback
+history = model.fit(X_train, epochs=epochs, validation_data=(X_val, y_val), callbacks=[early_stopping])
 
 # Save the model
 model.save("screw_classifier_model_cropped.h5")
@@ -126,6 +133,19 @@ print("Model trained and saved as 'screw_classifier_model_cropped.h5'")
 # Generate predictions on validation set
 y_pred = model.predict(X_val)
 y_pred_classes = np.argmax(y_pred, axis=1)  # Convert probabilities to class labels
+
+# Compute Precision-Recall curve for each class
+plt.figure(figsize=(10, 8))
+for i, class_name in enumerate(class_names):
+    # Get true binary labels for the current class
+    y_true_binary = (y_val == i).astype(int)
+    # Get predicted probabilities for the current class
+    y_pred_prob = y_pred[:, i]
+    # Compute precision and recall
+    precision, recall, _ = precision_recall_curve(y_true_binary, y_pred_prob)
+    # Plot the curve
+    plt.plot(recall, precision, label=f'{class_name} (AP={average_precision_score(y_true_binary, y_pred_prob):.2f})')
+
 
 # Compute confusion matrix
 conf_matrix = confusion_matrix(y_val, y_pred_classes)
@@ -136,4 +156,23 @@ sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_na
 plt.xlabel("Predicted Label")
 plt.ylabel("True Label")
 plt.title("Confusion Matrix")
+plt.show()
+
+# Plot training and validation loss
+plt.figure(figsize=(8, 6))
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss Over Epochs')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# Add labels and legend
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.title('Precision-Recall Curve')
+plt.legend(loc='lower left')
+plt.grid(True)
 plt.show()
