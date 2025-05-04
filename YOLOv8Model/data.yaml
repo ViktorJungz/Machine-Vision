@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 4
+names: ['Lag Bolt', 'SMS', 'Socket Screw', 'Wood Screw']
+
+roboflow:
+  workspace: test-workspace-on982
+  project: screw-detection-pj3vq
+  version: 1
+  license: MIT
+  url: https://universe.roboflow.com/test-workspace-on982/screw-detection-pj3vq/dataset/1
