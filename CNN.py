@@ -10,16 +10,14 @@ from sklearn.model_selection import train_test_split
 from keras.src.callbacks import EarlyStopping
 from sklearn.metrics import precision_recall_curve, average_precision_score
 
-
-
 # Set parameters
 img_size = (224, 224)
-batch_size = 64
-epochs = 30
+batch_size = 16
+epochs = 100
 data_dir = "Pictures"
 
 # Define EarlyStopping callback
-early_stopping = EarlyStopping(monitor='val_loss', patience=3)
+early_stopping = EarlyStopping(monitor='val_loss', restore_best_weights=True, patience=5)
 
 # Data augmentation
 datagen = tf.keras.preprocessing.image.ImageDataGenerator(
@@ -28,47 +26,19 @@ datagen = tf.keras.preprocessing.image.ImageDataGenerator(
     vertical_flip=True  # Ensures different orientations are seen
 )
 
-# Function to detect and crop the screw while maintaining aspect ratio
-def detect_and_crop_screw(image):
-    """Detects the screw in an image and crops it while preserving aspect ratio on a white background."""
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # Convert to grayscale
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)  # Reduce noise
-    edges = cv2.Canny(blurred, 50, 150)  # Edge detection
-
-    # Find contours
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    if contours:
-        largest_contour = max(contours, key=cv2.contourArea)  # Find largest contour
-        x, y, w, h = cv2.boundingRect(largest_contour)  # Get bounding box
-
-        # Crop the detected screw
-        cropped = image[y:y+h, x:x+w]
-
-        # Resize while maintaining aspect ratio
-        h, w, _ = cropped.shape
-        scale = min(img_size[0] / w, img_size[1] / h)  # Scale factor
-        new_w, new_h = int(w * scale), int(h * scale)
-        resized = cv2.resize(cropped, (new_w, new_h))
-
-        # Create a white background and center the resized image
-        padded = np.ones((img_size[1], img_size[0], 3), dtype=np.uint8) * 255  # White background
-        start_x = (img_size[0] - new_w) // 2
-        start_y = (img_size[1] - new_h) // 2
-        padded[start_y:start_y+new_h, start_x:start_x+new_w] = resized
-
-        return padded
-
-    # If no screw is found, return a white image
-    return np.ones((img_size[1], img_size[0], 3), dtype=np.uint8) * 255
+# Function to resize and normalize the image
+def resize_and_normalize_image(image):
+    """Resize the image and normalize pixel values."""
+    resized = cv2.resize(image, img_size)  # Resize the image
+    normalized = resized / 255.0  # Normalize pixel values
+    return normalized
 
 # Function to preprocess dataset images
 def preprocess_image(file_path):
-    """Loads, detects, and preprocesses an image."""
+    """Loads and preprocesses an image."""
     image = cv2.imread(file_path)
-    cropped = detect_and_crop_screw(image)  # Crop the screw
-    cropped = cropped / 255.0  # Normalize pixel values
-    return cropped
+    processed_image = resize_and_normalize_image(image)  # Resize and normalize
+    return processed_image
 
 # Load dataset and preprocess images
 def load_dataset():
@@ -106,20 +76,20 @@ X_train = datagen.flow(X_train, y_train, batch_size=batch_size)
 
 # Build the model
 model = keras.Sequential([
-    keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(224, 224, 3)),
+    keras.layers.Conv2D(64, (3, 3), activation='relu', input_shape=(224, 224, 3)),
     keras.layers.MaxPooling2D(2, 2),
     keras.layers.Conv2D(64, (3, 3), activation='relu'),
     keras.layers.MaxPooling2D(2, 2),
     keras.layers.Conv2D(128, (3, 3), activation='relu'),
     keras.layers.MaxPooling2D(2, 2),
     keras.layers.Flatten(),
-    keras.layers.Dense(128, activation='relu'),
-    keras.layers.Dropout(0.5),
+    keras.layers.Dense(192, activation='relu'),
+    keras.layers.Dropout(0.3),
     keras.layers.Dense(len(class_names), activation='softmax')
 ])
 
 # Compile the model
-model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),    # Reudced from 0.001 to 0.0001
+model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),    # Reudced from 0.001 to 0.0001
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
 
@@ -127,25 +97,12 @@ model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),    # Reudce
 history = model.fit(X_train, epochs=epochs, validation_data=(X_val, y_val), callbacks=[early_stopping])
 
 # Save the model
-model.save("screw_classifier_model_cropped.h5")
-print("Model trained and saved as 'screw_classifier_model_cropped.h5'")
+model.save("screw_classifier_model_resized.h5")
+print("Model trained and saved as 'screw_classifier_model_resized.h5'")
 
 # Generate predictions on validation set
 y_pred = model.predict(X_val)
 y_pred_classes = np.argmax(y_pred, axis=1)  # Convert probabilities to class labels
-
-# Compute Precision-Recall curve for each class
-plt.figure(figsize=(10, 8))
-for i, class_name in enumerate(class_names):
-    # Get true binary labels for the current class
-    y_true_binary = (y_val == i).astype(int)
-    # Get predicted probabilities for the current class
-    y_pred_prob = y_pred[:, i]
-    # Compute precision and recall
-    precision, recall, _ = precision_recall_curve(y_true_binary, y_pred_prob)
-    # Plot the curve
-    plt.plot(recall, precision, label=f'{class_name} (AP={average_precision_score(y_true_binary, y_pred_prob):.2f})')
-
 
 # Compute confusion matrix
 conf_matrix = confusion_matrix(y_val, y_pred_classes)
@@ -170,6 +127,17 @@ plt.grid(True)
 plt.show()
 
 # Add labels and legend
+# Compute Precision-Recall curve for each class
+plt.figure(figsize=(10, 8))
+for i, class_name in enumerate(class_names):
+    # Get true binary labels for the current class
+    y_true_binary = (y_val == i).astype(int)
+    # Get predicted probabilities for the current class
+    y_pred_prob = y_pred[:, i]
+    # Compute precision and recall
+    precision, recall, _ = precision_recall_curve(y_true_binary, y_pred_prob)
+# Plot the curve
+plt.plot(recall, precision, label=f'{class_name} (AP={average_precision_score(y_true_binary, y_pred_prob):.2f})')
 plt.xlabel('Recall')
 plt.ylabel('Precision')
 plt.title('Precision-Recall Curve')

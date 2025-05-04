@@ -1,48 +1,47 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-import os
 
-# Set parameters
-img_size = (224, 224)
-image_path = "Pictures\LagBolt\LagBolt75.jpg"  # Change this to your test image
-
-def visualize_preprocessing(image_path):
-    image = cv2.imread(image_path)
+# === Improved detect_bbox function ===
+def detect_bbox(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
-    
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    if contours:
-        largest_contour = max(contours, key=cv2.contourArea)
-        x, y, w, h = cv2.boundingRect(largest_contour)
-        cropped = image[y:y+h, x:x+w]
-        h, w, _ = cropped.shape
-        scale = min(img_size[0] / w, img_size[1] / h)
-        new_w, new_h = int(w * scale), int(h * scale)
-        resized = cv2.resize(cropped, (new_w, new_h))
-        
-        padded = np.ones((img_size[1], img_size[0], 3), dtype=np.uint8) * 255
-        start_x = (img_size[0] - new_w) // 2
-        start_y = (img_size[1] - new_h) // 2
-        padded[start_y:start_y+new_h, start_x:start_x+new_w] = resized
-    else:
-        padded = np.ones((img_size[1], img_size[0], 3), dtype=np.uint8) * 255
-    
-    images = [image, gray, blurred, edges, cropped, padded]
-    titles = ["Original", "Grayscale", "Blurred", "Edges", "Cropped", "Final Processed"]
-    
-    plt.figure(figsize=(12, 8))
-    for i in range(len(images)):
-        plt.subplot(2, 3, i+1)
-        cmap = 'gray' if len(images[i].shape) == 2 else None
-        plt.imshow(images[i], cmap=cmap)
-        plt.title(titles[i])
-        plt.axis("off")
-    plt.tight_layout()
-    plt.show()
 
-# Run visualization
-visualize_preprocessing(image_path)
+    # Lower thresholds to capture more detail
+    edges = cv2.Canny(blurred, 30, 100)
+
+    # Dilate edges to connect broken parts of the screw
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    dilated = cv2.dilate(edges, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if contours:
+        # Combine all large contours into one bounding box
+        screw_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > 500]
+        if screw_contours:
+            x, y, w, h = cv2.boundingRect(np.vstack(screw_contours))
+            return (x, y, x + w, y + h)
+    return None
+
+# === Load and process an image ===
+image_path = "Pictures\\LagBolt\\WoodScrew488.jpg"  # <-- Change this to your test image path
+image = cv2.imread(image_path)
+
+if image is None:
+    print("❌ Failed to load image.")
+else:
+    bbox = detect_bbox(image)
+
+    if bbox:
+        # Draw bounding box
+        cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
+        cv2.putText(image, "Detected", (bbox[0], bbox[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        print("✅ Bounding box drawn.")
+    else:
+        print("⚠️ No object detected.")
+
+    # Show image
+    cv2.imshow("Detected Image", image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
